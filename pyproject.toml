@@ -1,0 +1,30 @@
+[project]
+name = "handoff-mcp"
+version = "0.1.0"
+description = "MCP server + CLI that lets Claude hand tasks off to peer coding-agent CLIs (OpenAI Codex, Google Antigravity/Gemini 3) — separate quota pools, second opinions, visual feedback, async status."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+authors = [{ name = "Felix Krueckel" }]
+keywords = ["mcp", "codex", "antigravity", "gemini", "handoff", "code-review", "multimodal", "agents"]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS :: MacOS X",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "mcp>=1.27.0",
+]
+
+[project.scripts]
+handoff-mcp = "handoff_mcp.server:main"
+handoff = "handoff_mcp.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/handoff_mcp"]
