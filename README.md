@@ -53,7 +53,8 @@ visual, or too large for a normal context window → **antigravity**.
 |------|---------|
 | `handoff` | Run a backend **synchronously**, return its answer. |
 | `handoff_start` | Fire a **background job**, return a job id immediately. |
-| `handoff_status` | Poll a job: `state`, `elapsed_s`, streamed `log_tail`, `result`. |
+| `handoff_wait` | **Block** until a job finishes, then return its result. |
+| `handoff_status` | Peek at a job: `state`, `elapsed_s`, streamed `log_tail`, `result`. |
 | `handoff_jobs` | List recent jobs. |
 | `handoff_backends` | Install/auth readiness of each backend + a guidance-staleness banner. |
 | `handoff_guidance` | The full model routing guide. |
@@ -73,13 +74,39 @@ visual, or too large for a normal context window → **antigravity**.
   `accept-edits`). Default `False` = read-only, right for reviews/opinions.
 - `timeout` — seconds before abort.
 
-### Async pattern
+### Async pattern — how to actually get the result back
+
+`handoff_start` returns instantly, so something has to bring the caller back
+when the job ends. Pick one:
 
 ```
 job = handoff_start("deep-review this repo for races", "codex", cwd="~/proj")
-# → "Started codex job a1b2c3…"
-handoff_status("a1b2c3…")   # poll until state != "running"
+# → prints the job id AND the path of its .done sentinel
+
+handoff_wait(job)      # ← preferred: blocks, returns the moment it's finished
+handoff_status(job)    # optional mid-flight progress peek
 ```
+
+If you want to keep working while it runs, wait on the sentinel from a
+background shell — the command exits exactly once, when the job ends, which is
+what makes an agent harness fire its completion notification:
+
+```sh
+until [ -f ~/.cache/handoff-mcp/jobs/<id>.done ]; do sleep 10; done
+```
+
+**Anti-pattern:** backgrounding a waiter on a path the job never creates. Each
+job writes exactly three files into `~/.cache/handoff-mcp/jobs/`:
+
+| File | Written | Contains |
+|------|---------|----------|
+| `<id>.log` | live | streamed peer-agent output |
+| `<id>.json` | on start + on finish | full job state (survives an MCP restart) |
+| `<id>.done` | on finish only | terminal state — the thing to wait on |
+
+A waiter watching anything else loops forever, gets killed with the session, and
+silently notifies no one. If the server restarted mid-job, `handoff_status`
+reports `state: "orphaned"` instead of a permanent `running`.
 
 ---
 
@@ -195,3 +222,7 @@ update `ROUTING_GUIDE` and `MODEL_INFO_UPDATED` in `src/handoff_mcp/core.py`.
 ## License
 
 MIT
+
+## Stall detection
+
+A backend that prints nothing for `HANDOFF_IDLE_TIMEOUT` seconds (default 480) is killed and the job fails fast with a "stalled" error, instead of waiting for the full `HANDOFF_JOB_TIMEOUT`. Codex losing its API connection is the typical cause.
