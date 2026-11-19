@@ -30,6 +30,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("-f", "--file", action="append", default=[], dest="files",
                    help="Attach a file (repeatable).")
     p.add_argument("-m", "--model", default="", help="Model id override.")
+    p.add_argument("-e", "--effort", default="",
+                   help="Codex reasoning effort (low|medium|high|xhigh|max); overrides ~/.codex/config.toml "
+                        "(needed when that sets a value the chosen model rejects, e.g. 'none').")
     p.add_argument("-C", "--cwd", default=None,
                    help="Project dir the agent may read for context.")
     p.add_argument("--approve", action="store_true",
@@ -43,6 +46,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--guidance", action="store_true",
                    help="Print the model routing guide and exit.")
     return p
+
+
+def _apply_effort(args) -> None:
+    # Passed to codex through the environment, so background jobs (which inherit it) get it too.
+    if getattr(args, "effort", ""):
+        import os
+        os.environ["HANDOFF_CODEX_EFFORT"] = args.effort
 
 
 def _run_async(args) -> int:
@@ -69,6 +79,7 @@ def _run_async(args) -> int:
 
 def main() -> int:
     args = build_parser().parse_args()
+    _apply_effort(args)
 
     if args.status:
         print(json.dumps(core.backends_status(), indent=2))
